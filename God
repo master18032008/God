@@ -4,7 +4,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $Host.UI.RawUI.WindowTitle = "Game Over - Gestão de Biblioteca v3.0 (PLANO GOD)"
 Clear-Host
 
-# Ativar suporte a cores ANSI no console para evitar letras bugadas
+# Ativar suporte a cores ANSI no console
 if ($host.Name -eq 'ConsoleHost') {
     $mode = Get-ItemProperty -Path "HKCU:\Console" -Name "VirtualTerminalLevel" -ErrorAction SilentlyContinue
     if (-not $mode) {
@@ -72,17 +72,16 @@ function Executar-Instalacao {
     $nomeArquivo = "PlanoGod.zip"
     $urlDoZip = "https://cdn.discordapp.com/attachments/1500928090619121826/1501333578620076093/PlanoGod.zip?ex=69fbb15a&is=69fa5fda&hm=211d0dc31676f01abb565c7ac51abb45870a8085f78b7a73c09a8800b63ffe57&" 
     
-    # --- DOWNLOAD DO ZIP ---
-    if (-not (Test-Path $nomeArquivo)) {
-        Write-Host "Baixando arquivos da biblioteca (Plano God)..." -ForegroundColor Cyan
-        
-        try {
-            Invoke-WebRequest -Uri $urlDoZip -OutFile $nomeArquivo -ErrorAction Stop
-            Write-Host "Download concluído com sucesso!" -ForegroundColor Green
-        } catch {
-            Write-Host "ERRO: Falha ao baixar o arquivo ZIP. O link pode ter expirado." -ForegroundColor Red
-            Pause; return
-        }
+    # Limpa o arquivo antigo para garantir que o novo link seja baixado
+    if (Test-Path $nomeArquivo) { Remove-Item $nomeArquivo -Force }
+
+    Write-Host "Baixando arquivos da biblioteca (Plano God)..." -ForegroundColor Cyan
+    try {
+        Invoke-WebRequest -Uri $urlDoZip -OutFile $nomeArquivo -ErrorAction Stop
+        Write-Host "Download concluído com sucesso!" -ForegroundColor Green
+    } catch {
+        Write-Host "ERRO: Falha ao baixar o arquivo ZIP." -ForegroundColor Red
+        Pause; return
     }
 
     Stop-Steam
@@ -103,20 +102,27 @@ function Executar-Instalacao {
     Write-Host "Extraindo e aplicando configurações..." -ForegroundColor Cyan
     $tmp = "$env:TEMP\planogod_install_tmp"
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+    New-Item -ItemType Directory -Path $tmp | Out-Null
     
     try {
         Expand-Archive -Path $nomeArquivo -DestinationPath $tmp -Force
         
-        # Limpeza de pastas de config
+        # BUSCA DINÂMICA: Localiza a pasta Config no ZIP
+        $pastaConfigZip = Get-ChildItem -Path $tmp -Recurse -Directory -Filter "Config" | Select-Object -First 1
+        
+        # Limpeza de pastas de config da Steam
         $limpar = @("$configDir\depotcache", "$configDir\stplug-in")
         foreach ($l in $limpar) { if (Test-Path $l) { Remove-Item $l -Recurse -Force -ErrorAction SilentlyContinue } }
 
-        # Cópia dos arquivos
-        if (Test-Path "$tmp\Config") {
-            Copy-Item -Path "$tmp\Config\*" -Destination "$configDir\" -Recurse -Force
+        # Cópia forçada dos arquivos da Config
+        if ($pastaConfigZip) {
+            Copy-Item -Path "$($pastaConfigZip.FullName)\*" -Destination "$configDir\" -Recurse -Force
         }
-        if (Test-Path "$tmp\Hid.dll") {
-            Copy-Item -Path "$tmp\Hid.dll" -Destination "$steamDir\" -Force
+
+        # Localiza e copia o Hid.dll
+        $arquivoHid = Get-ChildItem -Path $tmp -Recurse -File -Filter "Hid.dll" | Select-Object -First 1
+        if ($arquivoHid) {
+            Copy-Item -Path $arquivoHid.FullName -Destination "$steamDir\" -Force
         }
         
         # Limpeza de caches se for Instalação Completa
@@ -130,8 +136,10 @@ function Executar-Instalacao {
         }
         Write-Host "`nPROCESSO FINALIZADO COM SUCESSO!" -ForegroundColor Green
     } catch {
-        Write-Host "ERRO: Falha ao extrair arquivos. O ZIP pode estar corrompido." -ForegroundColor Red
+        Write-Host "ERRO: Falha ao extrair arquivos." -ForegroundColor Red
     }
+    
+    if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
 # ===== MENU DE OPÇÕES =====
