@@ -70,7 +70,7 @@ function Executar-Instalacao {
     Show-Header
     
     $nomeArquivo = "PlanoGod.zip"
-    $urlDoZip = "https://cdn.discordapp.com/attachments/1500928090619121826/1501328242169090258/PlanoGod.zip?ex=69fbac62&is=69fa5ae2&hm=e11576e271d8638e4adf040f15f073aa278e36f5e5afbbcf58f425eb1a23168e&" 
+    $urlDoZip = "https://cdn.discordapp.com/attachments/1500928090619121826/1501330876313632911/PlanoGod.zip?ex=69fbaed6&is=69fa5d56&hm=2cebe597f39d170729367218709dfb69c36c53c15121a8b2167d76b0d6030a71&" 
     
     # --- DOWNLOAD DO ZIP ---
     if (-not (Test-Path $nomeArquivo)) {
