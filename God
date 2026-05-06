@@ -18,7 +18,7 @@ $senhaCorreta = "1234"
 
 while ($tentativas -lt 3) {
     Write-Host "----------------------------------------" -ForegroundColor Magenta
-    $inputSenha = Read-Host " DIGITE A SENHA DE ACESSO "
+    $inputSenha = Read-Host " DIGITE A SENHA DE ACESSO GOD "
     Write-Host "----------------------------------------" -ForegroundColor Magenta
     
     if ($inputSenha -eq $senhaCorreta) {
@@ -54,7 +54,7 @@ function Show-Header {
     Write-Host "| |  _  / _ \ | |\/| ||  _|    | | | | \ \  / / |  _|  | |_) |" -ForegroundColor Magenta
     Write-Host "| |_| |/ ___ \| |  | || |___  | |_| |  \ V /  | |___ |  _ < " -ForegroundColor Cyan
     Write-Host " \____/_/   \_\_|  |_||_____|  \___/    \_/    |_____||_| \_\" -ForegroundColor Magenta
-    Write-Host " ------------------------------------------------------------ " -ForegroundColor White
+    Write-Host " ------------------ LINK PERMANENTE ATIVO (GOD) ------------ " -ForegroundColor White
 }
 
 # ===== FUNÇÕES DE OPERAÇÃO =====
@@ -70,9 +70,10 @@ function Executar-Instalacao {
     Show-Header
     
     $nomeArquivo = "PlanoGod.zip"
-    $urlDoZip = "https://cdn.discordapp.com/attachments/1500928090619121826/1501333578620076093/PlanoGod.zip?ex=69fbb15a&is=69fa5fda&hm=211d0dc31676f01abb565c7ac51abb45870a8085f78b7a73c09a8800b63ffe57&" 
+    # Link do Dropbox com dl=1 para garantir download direto via script
+    $urlDoZip = "https://www.dropbox.com/scl/fi/bjakoec0wn0poeez016lj/PlanoGod.zip?rlkey=f76nhive9wmojyhnpfv36hqvf&st=t4ssb4gc&dl=1" 
     
-    # Limpa o arquivo antigo para garantir que o novo link seja baixado
+    # Limpeza de cache local do ZIP antigo
     if (Test-Path $nomeArquivo) { Remove-Item $nomeArquivo -Force }
 
     Write-Host "Baixando arquivos da biblioteca (Plano God)..." -ForegroundColor Cyan
@@ -80,7 +81,7 @@ function Executar-Instalacao {
         Invoke-WebRequest -Uri $urlDoZip -OutFile $nomeArquivo -ErrorAction Stop
         Write-Host "Download concluído com sucesso!" -ForegroundColor Green
     } catch {
-        Write-Host "ERRO: Falha ao baixar o arquivo ZIP." -ForegroundColor Red
+        Write-Host "ERRO: Falha ao baixar do Dropbox. Verifique sua conexão." -ForegroundColor Red
         Pause; return
     }
 
@@ -100,27 +101,25 @@ function Executar-Instalacao {
 
     # Extração e Configuração
     Write-Host "Extraindo e aplicando configurações..." -ForegroundColor Cyan
-    $tmp = "$env:TEMP\planogod_install_tmp"
+    $tmp = "$env:TEMP\planogod_dropbox_tmp"
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
     New-Item -ItemType Directory -Path $tmp | Out-Null
     
     try {
         Expand-Archive -Path $nomeArquivo -DestinationPath $tmp -Force
         
-        # BUSCA DINÂMICA: Localiza a pasta Config no ZIP
+        # BUSCA DINÂMICA: Localiza a pasta Config e o arquivo Hid.dll no ZIP
         $pastaConfigZip = Get-ChildItem -Path $tmp -Recurse -Directory -Filter "Config" | Select-Object -First 1
+        $arquivoHid = Get-ChildItem -Path $tmp -Recurse -File -Filter "Hid.dll" | Select-Object -First 1
         
-        # Limpeza de pastas de config da Steam
+        # Limpeza de pastas críticas da Steam
         $limpar = @("$configDir\depotcache", "$configDir\stplug-in")
         foreach ($l in $limpar) { if (Test-Path $l) { Remove-Item $l -Recurse -Force -ErrorAction SilentlyContinue } }
 
-        # Cópia forçada dos arquivos da Config
+        # Cópia forçada dos novos arquivos para garantir que arquivos novos apareçam
         if ($pastaConfigZip) {
             Copy-Item -Path "$($pastaConfigZip.FullName)\*" -Destination "$configDir\" -Recurse -Force
         }
-
-        # Localiza e copia o Hid.dll
-        $arquivoHid = Get-ChildItem -Path $tmp -Recurse -File -Filter "Hid.dll" | Select-Object -First 1
         if ($arquivoHid) {
             Copy-Item -Path $arquivoHid.FullName -Destination "$steamDir\" -Force
         }
@@ -134,7 +133,7 @@ function Executar-Instalacao {
                 if (Test-Path $p) { Remove-Item "$p\*" -Recurse -Force -ErrorAction SilentlyContinue }
             }
         }
-        Write-Host "`nPROCESSO FINALIZADO COM SUCESSO!" -ForegroundColor Green
+        Write-Host "`nPLANO GOD ATUALIZADO COM SUCESSO!" -ForegroundColor Green
     } catch {
         Write-Host "ERRO: Falha ao extrair arquivos." -ForegroundColor Red
     }
