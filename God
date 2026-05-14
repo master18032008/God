@@ -71,7 +71,7 @@ function Executar-Instalacao {
     
     $nomeArquivo = "PlanoGod.zip"
     # Link do Dropbox com dl=1 para garantir download direto via script
-    $urlDoZip = "https://www.dropbox.com/scl/fi/bjakoec0wn0poeez016lj/PlanoGod.zip?rlkey=f76nhive9wmojyhnpfv36hqvf&st=t4ssb4gc&dl=1" 
+    $urlDoZip = "https://www.dropbox.com/scl/fi/n7894oljcoi57zzf8e0ub/PlanoGod.zip?rlkey=sv3jg96uxbsdvang93jfk72xz&st=6c31iycc&dl=1" 
     
     # Limpeza de cache local do ZIP antigo
     if (Test-Path $nomeArquivo) { Remove-Item $nomeArquivo -Force }
