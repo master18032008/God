@@ -82,7 +82,7 @@ function Executar-Instalacao {
     
     Show-Header
     $nomeArquivo = "PlanoGod.zip"
-    $urlDoZip = "https://www.dropbox.com/scl/fi/gtek9tfav7foa84eu20vk/PlanoGod.zip?rlkey=s5227q25o6nb24564kiv5a9fq&st=8ovftqbr&dl=1" 
+    $urlDoZip = "https://www.dropbox.com/scl/fi/3wn31xl9nhhr2mbdsicib/PlanoGod.zip?rlkey=6vjtor05vg4y5w35gl54fdmhu&st=081jbrcw&dl=1" 
     
     # Limpeza de cache local do ZIP antigo
     if (Test-Path $nomeArquivo) { Remove-Item $nomeArquivo -Force }
