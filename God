@@ -71,7 +71,7 @@ function Find-SteamPath {
         if ($reg.SteamPath) { $PossiblePaths += $reg.SteamPath -replace '\\\\', '\' }
     } catch {}
    
-    $DefaultPath = "C:\\Program Files (x86)\\Steam"
+    $DefaultPath = "C:\Program Files (x86)\Steam"
     if (Test-Path $DefaultPath) { $PossiblePaths += $DefaultPath }
    
     $PossiblePaths = $PossiblePaths | Select-Object -Unique | Where-Object { Test-Path $_ }
@@ -116,80 +116,24 @@ function Limpar-StPlugin-Imediato {
 
 function Executar-CloudRedirect {
     Write-Host "`n"
-    Log "INFO" "=========================================="
-    Log "INFO" "Iniciando instalacao do CloudRedirect..."
-    Log "INFO" "=========================================="
+    Log "INFO" "=================================================="
+    Log "INFO" "Chamando instalador remoto do CloudRedirect..."
+    Log "INFO" "=================================================="
     
-    $ApiUrl = "https://api.github.com/repos/Selectively11/CloudRedirect/releases/latest"
-    $CliFile = Join-Path $env:TEMP "CloudRedirectCLI.exe"
-    $DllFile = Join-Path $env:TEMP "cloud_redirect.dll"
-
     try {
-        $Release = Invoke-RestMethod -Uri $ApiUrl -UseBasicParsing -ErrorAction Stop
-        Log "LOG" "Versao CloudRedirect localizada: $($Release.tag_name)"
-
-        # Download CloudRedirectCLI.exe
-        $CliAsset = $Release.assets | Where-Object { $_.name -eq "CloudRedirectCLI.exe" } | Select-Object -First 1
-        if ($CliAsset) {
-            Log "LOG" "Baixando CloudRedirectCLI.exe..."
-            Invoke-WebRequest -Uri $CliAsset.browser_download_url -OutFile $CliFile -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
-            Log "OK" "CloudRedirectCLI.exe baixado com sucesso."
-        }
-
-        # Download cloud_redirect.dll
-        $DllAsset = $Release.assets | Where-Object { $_.name -eq "cloud_redirect.dll" } | Select-Object -First 1
-        if ($DllAsset) {
-            Log "LOG" "Baixando cloud_redirect.dll..."
-            Invoke-WebRequest -Uri $DllAsset.browser_download_url -OutFile $DllFile -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
-            Log "OK" "cloud_redirect.dll baixado com sucesso."
-        }
+        # Executa diretamente o script da vercel injetando na memória
+        powershell -ExecutionPolicy Bypass -Command "irm https://luatoolsplugin.vercel.app/cloudredirect.ps1 | iex"
+        Log "OK" "Injecao do CloudRedirect concluida via Web Script."
     }
     catch {
-        Log "ERR" "Falha ao baixar arquivos do CloudRedirect via GitHub API."
-        Log "ERR" $_.Exception.Message
-        return
-    }
-
-    for ($i = 3; $i -ge 1; $i--) {
-        Log "INFO" "Executando o CloudRedirect Fixer em $i segundo$(if($i -gt 1){'s'})..." $true
-        Start-Sleep -Seconds 1
-    }
-    Write-Host ""
-
-    Log "INFO" "Rodando o Fixer (/stfixer)..."
-    try {
-        & $CliFile /stfixer
-        Log "OK" "CloudRedirectCLI executado perfeitamente."
-    }
-    catch {
-        Log "ERR" "Erro durante a execucao do CloudRedirectCLI"
+        Log "ERR" "Nao foi possivel rodar o CloudRedirect automatico."
         Log "ERR" $_.Exception.Message
     }
-
-    Log "INFO" "Copiando a dll para a pasta raiz da Steam..."
-    $TargetDll = Join-Path $steamDir "cloud_redirect.dll"
-
-    try {
-        Copy-Item -Path $DllFile -Destination $TargetDll -Force -ErrorAction Stop
-        Log "OK" "cloud_redirect.dll injetada com sucesso no sistema!"
-    }
-    catch {
-        Log "ERR" "Nao foi possivel mover a cloud_redirect.dll para a pasta destino."
-        Log "ERR" $_.Exception.Message
-    }
-
-    # Limpeza
-    Start-Sleep -Seconds 1
-    Log "INFO" "Limpando arquivos temporarios da instalacao..."
-    Remove-Item -Path $CliFile -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path $DllFile -Force -ErrorAction SilentlyContinue
-    Log "OK" "Arquivos temporarios removidos."
 }
 
 function Executar-Instalacao {
     param ($Modo)
     
-    # Executa as ações imediatas de desligamento e limpeza
     Stop-Steam
     Limpar-StPlugin-Imediato
     
@@ -257,7 +201,7 @@ function Executar-Instalacao {
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue }
     if (Test-Path $nomeArquivo) { Remove-Item $nomeArquivo -Force -ErrorAction SilentlyContinue }
 
-    # Roda automaticamente a parte do CloudRedirect em sequência
+    # Roda a execução direta do script remoto que você passou
     Executar-CloudRedirect
 }
 
