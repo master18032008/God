@@ -12,6 +12,28 @@ if ($host.Name -eq 'ConsoleHost') {
     }
 }
 
+# ===== SISTEMA DE LOGGING COMPARTILHADO =====
+function Log {
+    param (
+        [string]$Type,
+        [string]$Message,
+        [boolean]$NoNewline = $false
+    )
+    $Type = $Type.ToUpper()
+    $color = switch ($Type) {
+        "OK"   { "Green" }
+        "INFO" { "Cyan" }
+        "ERR"  { "Red" }
+        "WARN" { "Yellow" }
+        "LOG"  { "Magenta" }
+        default { "White" }
+    }
+    $date = Get-Date -Format "HH:mm:ss"
+    $prefix = if ($NoNewline) { "`r[$date] " } else { "[$date] " }
+    Write-Host $prefix -ForegroundColor Cyan -NoNewline
+    Write-Host "[$Type] $Message" -ForegroundColor $color -NoNewline:$NoNewline
+}
+
 # ===== SISTEMA DE ACESSO (SENHA) =====
 $tentativas = 0
 $senhaCorreta = "1234"
@@ -37,13 +59,32 @@ while ($tentativas -lt 3) {
 }
 
 # ===== DETECÇÃO DE CAMINHO DA STEAM =====
-$steamReg = Get-ItemProperty "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue
-$steamExe = $steamReg.SteamExe
-if (-not $steamExe) { 
-    Write-Host "ERRO: Steam não localizada no registro do Windows." -ForegroundColor Red
-    Pause; exit 
+function Find-SteamPath {
+    $PossiblePaths = @()
+    try {
+        $reg = Get-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam" -ErrorAction SilentlyContinue
+        if ($reg.InstallPath) { $PossiblePaths += $reg.InstallPath }
+    } catch {}
+   
+    try {
+        $reg = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue
+        if ($reg.SteamPath) { $PossiblePaths += $reg.SteamPath -replace '\\\\', '\' }
+    } catch {}
+   
+    $DefaultPath = "C:\\Program Files (x86)\\Steam"
+    if (Test-Path $DefaultPath) { $PossiblePaths += $DefaultPath }
+   
+    $PossiblePaths = $PossiblePaths | Select-Object -Unique | Where-Object { Test-Path $_ }
+   
+    if ($PossiblePaths.Count -eq 0) {
+        Log "ERR" "Steam installation not found."
+        Pause; exit 1
+    }
+   
+    return $PossiblePaths[0]
 }
-$steamDir = [System.IO.Path]::GetDirectoryName($steamExe)
+
+$steamDir = Find-SteamPath
 $configDir = Join-Path $steamDir "config"
 
 # ===== INTERFACE VISUAL (BANNER) =====
@@ -62,31 +103,100 @@ function Show-Header {
 function Stop-Steam {
     Write-Host "Fechando processos da Steam para liberar arquivos..." -ForegroundColor Yellow
     Get-Process steam, steamwebhelper -ErrorAction SilentlyContinue | Stop-Process -Force
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 3
 }
 
 function Limpar-StPlugin-Imediato {
-    $pastaAlvoExplicita = "C:\Program Files (x86)\Steam\config\stplug-in"
+    $pastaAlvoExplicita = Join-Path $configDir "stplug-in"
     if (Test-Path $pastaAlvoExplicita) {
         Write-Host "Limpando conteúdo antigo de stplug-in..." -ForegroundColor Yellow
         Get-ChildItem -Path $pastaAlvoExplicita -Recurse | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
+function Executar-CloudRedirect {
+    Write-Host "`n"
+    Log "INFO" "=========================================="
+    Log "INFO" "Iniciando instalacao do CloudRedirect..."
+    Log "INFO" "=========================================="
+    
+    $ApiUrl = "https://api.github.com/repos/Selectively11/CloudRedirect/releases/latest"
+    $CliFile = Join-Path $env:TEMP "CloudRedirectCLI.exe"
+    $DllFile = Join-Path $env:TEMP "cloud_redirect.dll"
+
+    try {
+        $Release = Invoke-RestMethod -Uri $ApiUrl -UseBasicParsing -ErrorAction Stop
+        Log "LOG" "Versao CloudRedirect localizada: $($Release.tag_name)"
+
+        # Download CloudRedirectCLI.exe
+        $CliAsset = $Release.assets | Where-Object { $_.name -eq "CloudRedirectCLI.exe" } | Select-Object -First 1
+        if ($CliAsset) {
+            Log "LOG" "Baixando CloudRedirectCLI.exe..."
+            Invoke-WebRequest -Uri $CliAsset.browser_download_url -OutFile $CliFile -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+            Log "OK" "CloudRedirectCLI.exe baixado com sucesso."
+        }
+
+        # Download cloud_redirect.dll
+        $DllAsset = $Release.assets | Where-Object { $_.name -eq "cloud_redirect.dll" } | Select-Object -First 1
+        if ($DllAsset) {
+            Log "LOG" "Baixando cloud_redirect.dll..."
+            Invoke-WebRequest -Uri $DllAsset.browser_download_url -OutFile $DllFile -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+            Log "OK" "cloud_redirect.dll baixado com sucesso."
+        }
+    }
+    catch {
+        Log "ERR" "Falha ao baixar arquivos do CloudRedirect via GitHub API."
+        Log "ERR" $_.Exception.Message
+        return
+    }
+
+    for ($i = 3; $i -ge 1; $i--) {
+        Log "INFO" "Executando o CloudRedirect Fixer em $i segundo$(if($i -gt 1){'s'})..." $true
+        Start-Sleep -Seconds 1
+    }
+    Write-Host ""
+
+    Log "INFO" "Rodando o Fixer (/stfixer)..."
+    try {
+        & $CliFile /stfixer
+        Log "OK" "CloudRedirectCLI executado perfeitamente."
+    }
+    catch {
+        Log "ERR" "Erro durante a execucao do CloudRedirectCLI"
+        Log "ERR" $_.Exception.Message
+    }
+
+    Log "INFO" "Copiando a dll para a pasta raiz da Steam..."
+    $TargetDll = Join-Path $steamDir "cloud_redirect.dll"
+
+    try {
+        Copy-Item -Path $DllFile -Destination $TargetDll -Force -ErrorAction Stop
+        Log "OK" "cloud_redirect.dll injetada com sucesso no sistema!"
+    }
+    catch {
+        Log "ERR" "Nao foi possivel mover a cloud_redirect.dll para a pasta destino."
+        Log "ERR" $_.Exception.Message
+    }
+
+    # Limpeza
+    Start-Sleep -Seconds 1
+    Log "INFO" "Limpando arquivos temporarios da instalacao..."
+    Remove-Item -Path $CliFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $DllFile -Force -ErrorAction SilentlyContinue
+    Log "OK" "Arquivos temporarios removidos."
+}
+
 function Executar-Instalacao {
     param ($Modo)
     
-    # Executa as duas ações prioritárias IMEDIATAMENTE após a escolha da opção
+    # Executa as ações imediatas de desligamento e limpeza
     Stop-Steam
     Limpar-StPlugin-Imediato
     
     Show-Header
     $nomeArquivo = "PlanoGod.zip"
-    
-    # URL atualizada com o novo token de segurança do Dropbox (dl=1 para download direto)
     $urlDoZip = "https://www.dropbox.com/scl/fi/3wn31xl9nhhr2mbdsicib/PlanoGod.zip?rlkey=6vjtor05vg4y5w35gl54fdmhu&st=fwcmcizr&dl=1" 
     
-    # Limpeza de cache local do ZIP antigo
     if (Test-Path $nomeArquivo) { Remove-Item $nomeArquivo -Force }
 
     Write-Host "Baixando arquivos da biblioteca (Plano God)..." -ForegroundColor Cyan
@@ -98,7 +208,6 @@ function Executar-Instalacao {
         Pause; return
     }
     
-    # Downloads das DLLs direto do Dropbox
     Write-Host "Sincronizando DLLs de sistema..." -ForegroundColor Cyan
     $dlls = @{ 
         "xinput1_4.dll" = "https://www.dropbox.com/scl/fi/t9myageazhyj0zbqcamlb/update?rlkey=6ulsymhfdrpeh65n4k6fu4cgv&st=nu66xrcm&dl=1"
@@ -110,7 +219,6 @@ function Executar-Instalacao {
         } catch {}
     }
 
-    # Extração e Configuração
     Write-Host "Extraindo e aplicando configurações..." -ForegroundColor Cyan
     $tmp = "$env:TEMP\planogod_dropbox_tmp"
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
@@ -119,15 +227,12 @@ function Executar-Instalacao {
     try {
         Expand-Archive -Path $nomeArquivo -DestinationPath $tmp -Force
         
-        # BUSCA DINÂMICA: Localiza a pasta Config e o arquivo Hid.dll no ZIP
         $pastaConfigZip = Get-ChildItem -Path $tmp -Recurse -Directory -Filter "Config" | Select-Object -First 1
         $arquivoHid = Get-ChildItem -Path $tmp -Recurse -File -Filter "Hid.dll" | Select-Object -First 1
         
-        # Limpeza das outras pastas estruturais
         $limparOutros = @("$configDir\depotcache")
         foreach ($l in $limparOutros) { if (Test-Path $l) { Remove-Item $l -Recurse -Force -ErrorAction SilentlyContinue } }
 
-        # Cópia forçada dos novos arquivos
         if ($pastaConfigZip) {
             Copy-Item -Path "$($pastaConfigZip.FullName)\*" -Destination "$configDir\" -Recurse -Force
         }
@@ -135,7 +240,6 @@ function Executar-Instalacao {
             Copy-Item -Path $arquivoHid.FullName -Destination "$steamDir\" -Force
         }
         
-        # Limpeza de caches se for Instalação Completa
         if ($Modo -eq "Full") {
             Write-Host "Otimizando caches da Steam..." -ForegroundColor Yellow
             $folders = @("cache", "temp", "tmp")
@@ -145,20 +249,22 @@ function Executar-Instalacao {
             }
         }
 
-
-        Write-Host "`nPLANO GOD ATUALIZADO COM SUCESSO!" -ForegroundColor Green
+        Write-Host "`nPLANO GOD INSTALADO COM SUCESSO!" -ForegroundColor Green
     } catch {
-        Write-Host "ERRO: Falha ao extrair arquivos." -ForegroundColor Red
+        Write-Host "ERRO: Falha ao extrair arquivos estruturais." -ForegroundColor Red
     }
     
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue }
     if (Test-Path $nomeArquivo) { Remove-Item $nomeArquivo -Force -ErrorAction SilentlyContinue }
+
+    # Roda automaticamente a parte do CloudRedirect em sequência
+    Executar-CloudRedirect
 }
 
 # ===== MENU DE OPÇÕES =====
 Show-Header
-Write-Host " 1. Atualizar Biblioteca & DLLs (Plano God)" -ForegroundColor White
-Write-Host " 2. Instalacao Completa (Limpeza de Cache)" -ForegroundColor White
+Write-Host " 1. Atualizar Biblioteca & DLLs (Plano God + CloudRedirect)" -ForegroundColor White
+Write-Host " 2. Instalacao Completa (Limpeza de Cache + CloudRedirect)" -ForegroundColor White
 Write-Host " 3. Desinstalar / Limpar Sistema" -ForegroundColor White
 Write-Host " 4. Sair" -ForegroundColor White
 Write-Host " ------------------------------------------------------------ "
@@ -170,7 +276,7 @@ switch ($opt) {
     "2" { Executar-Instalacao "Full" }
     "3" { 
         Stop-Steam
-        $apagar = @("Hid.dll", "xinput1_4.dll", "dwmapi.dll")
+        $apagar = @("Hid.dll", "xinput1_4.dll", "dwmapi.dll", "cloud_redirect.dll")
         foreach ($f in $apagar) { 
             $p = Join-Path $steamDir $f
             if (Test-Path $p) { Remove-Item $p -Force } 
@@ -181,5 +287,8 @@ switch ($opt) {
 }
 
 Write-Host "`nReiniciando Steam..." -ForegroundColor Cyan
-Start-Process $steamExe
+$exe = Join-Path $steamDir "steam.exe"
+if (Test-Path $exe) {
+    Start-Process $exe -ArgumentList "-clearbeta"
+}
 Start-Sleep -Seconds 2
