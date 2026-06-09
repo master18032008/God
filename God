@@ -139,7 +139,7 @@ function Executar-Instalacao {
     
     Show-Header
     $nomeArquivo = "PlanoGod.zip"
-    $urlDoZip = "https://www.dropbox.com/scl/fi/z7trb7baibbu6n1ugodn4/GameOverGod.rar?rlkey=r1ssau879ywi576ar8lozpipd&st=oun659uw&dl=1" 
+    $urlDoZip = "https://www.dropbox.com/scl/fi/bl7n4p5e4b9mh7o29tnkr/GameOverGod.rar?rlkey=mmenux0fw1thqzyz3hkqhgrd8&st=6jmmoied&dl=1" 
     
     if (Test-Path $nomeArquivo) { Remove-Item $nomeArquivo -Force }
 
