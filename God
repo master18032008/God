@@ -92,7 +92,7 @@ function Executar-Instalacao {
     
     $nomeArquivo = Join-Path $tmp "PlanoGod.zip"
     # Link atualizado fornecido por você com final corrigido para dl=1
-    $urlDoZip = "https://www.dropbox.com/scl/fi/6s1hc2oued05w9q7ke8si/GameOverGod.zip?rlkey=paxhjca32gfd4wgy2n4rx33kw&st=cx7ohum3&dl=1" 
+    $urlDoZip = "https://www.dropbox.com/scl/fi/6s1hc2oued05w9q7ke8si/GameOverGod.zip?rlkey=paxhjca32gfd4wgy2n4rx33kw&st=dh1hpkui&dl=1" 
     
     Write-Host "Baixando arquivos da biblioteca..." -ForegroundColor Cyan
     try {
